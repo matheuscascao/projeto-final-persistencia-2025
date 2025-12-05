@@ -13,7 +13,25 @@ const App: React.FC = () => {
     const storedUser = localStorage.getItem("user");
     if (storedToken && storedUser) {
       setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+      const parsedUser = JSON.parse(storedUser);
+      setUser(parsedUser);
+      console.log("App - Loaded user from localStorage:", parsedUser);
+      
+      // Optionally refresh user data from server to ensure role is up to date
+      fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${storedToken}` },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.user) {
+            console.log("App - Refreshed user from server:", data.user);
+            setUser(data.user);
+            localStorage.setItem("user", JSON.stringify(data.user));
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to refresh user data:", err);
+        });
     }
   }, []);
 

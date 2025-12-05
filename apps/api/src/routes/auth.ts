@@ -4,7 +4,7 @@ import { db } from "../db/client";
 import { users } from "../db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { SignJWT } from "jose";
+import { SignJWT, jwtVerify } from "jose";
 import { env } from "../config/env";
 import { z } from "zod";
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import type { TouristSpot } from "@tourism/shared";
 import { SpotCard } from "./SpotCard";
+import { CreateSpotForm } from "./CreateSpotForm";
 
 interface SpotListProps {
   token: string;
@@ -13,11 +14,22 @@ export const SpotList: React.FC<SpotListProps> = ({ token, user }) => {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [filters, setFilters] = useState({
     city: "",
     minRating: "",
     search: "",
   });
+  
+  // Check if user is admin - handle both string and case variations
+  const isAdmin = user?.role === "ADMIN" || user?.role === "admin" || user?.role?.toUpperCase() === "ADMIN";
+  
+  // Debug: Log user object to see what we're getting
+  React.useEffect(() => {
+    console.log("SpotList - User object:", user);
+    console.log("SpotList - User role:", user?.role, "Type:", typeof user?.role);
+    console.log("SpotList - Is Admin:", isAdmin);
+  }, [user, isAdmin]);
 
   const loadSpots = async () => {
     try {
@@ -91,7 +103,24 @@ export const SpotList: React.FC<SpotListProps> = ({ token, user }) => {
     <section>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "1rem" }}>
         <h2 style={{ fontSize: "1.25rem", margin: 0 }}>Tourist Spots</h2>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          {isAdmin && (
+            <button
+              onClick={() => setShowCreateForm(!showCreateForm)}
+              style={{
+                padding: "0.5rem 1rem",
+                backgroundColor: showCreateForm ? "#6c757d" : "#28a745",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "0.9rem",
+                fontWeight: "500",
+              }}
+            >
+              {showCreateForm ? "Cancel" : "+ Create Spot"}
+            </button>
+          )}
           <button
             onClick={() => handleExport("json")}
             style={{
@@ -136,6 +165,18 @@ export const SpotList: React.FC<SpotListProps> = ({ token, user }) => {
           </button>
         </div>
       </div>
+
+      {/* Create Spot Form (Admin only) */}
+      {isAdmin && showCreateForm && (
+        <CreateSpotForm
+          token={token}
+          onSuccess={() => {
+            setShowCreateForm(false);
+            void loadSpots();
+          }}
+          onCancel={() => setShowCreateForm(false)}
+        />
+      )}
 
       {/* Filters */}
       <div style={{ marginBottom: "1rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
