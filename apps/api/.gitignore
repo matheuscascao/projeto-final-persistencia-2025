@@ -1,0 +1,14 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Build
+dist/
+
+# Uploads (photo storage)
+uploads/
+
+# Drizzle generated
+drizzle/
+
