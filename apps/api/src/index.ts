@@ -9,9 +9,15 @@ import photos from "./routes/photos";
 import lodgings from "./routes/lodgings";
 import directions from "./routes/directions";
 import exportRouter from "./routes/export";
+import favorites from "./routes/favorites";
 import importRouter from "./routes/import";
 
+import { serveStatic } from "hono/bun";
+
 const app = new Hono();
+
+// Serve uploaded files
+app.use("/uploads/*", serveStatic({ root: "./" }));
 
 // Enable CORS
 app.use("/*", cors());
@@ -28,6 +34,7 @@ app.route("/lodgings", lodgings);
 app.route("/directions", directions);
 app.route("/export", exportRouter);
 app.route("/import", importRouter);
+app.route("/favorites", favorites);
 
 console.log("✓ All routes mounted successfully");
 
@@ -35,5 +42,3 @@ export default {
   port: env.PORT,
   fetch: app.fetch,
 };
-
-

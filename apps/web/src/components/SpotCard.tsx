@@ -5,9 +5,11 @@ interface SpotCardProps {
   spot: TouristSpot;
   token: string | null;
   onUpdate: () => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: (spotId: string) => void;
 }
 
-export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate }) => {
+export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFavorite, onToggleFavorite }) => {
   const [showDetails, setShowDetails] = useState(false);
   const [ratings, setRatings] = useState<any[]>([]);
   const [comments, setComments] = useState<any[]>([]);
@@ -24,7 +26,7 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate }) => 
     setUserRating(null);
     setRatingComment("");
     setHoveredRating(null);
-    
+
     if (showDetails) {
       loadDetails();
     }
@@ -62,8 +64,8 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate }) => 
             // Check if response is null (no rating) or an actual rating object
             if (myRating !== null && myRating !== undefined && myRating.score !== null && myRating.score !== undefined) {
               // Ensure score is a number
-              const ratingScore = typeof myRating.score === 'number' 
-                ? myRating.score 
+              const ratingScore = typeof myRating.score === 'number'
+                ? myRating.score
                 : parseInt(String(myRating.score), 10);
               console.log("Loading myRating:", ratingScore, typeof ratingScore);
               setUserRating(ratingScore);
@@ -110,16 +112,16 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate }) => 
       if (res.ok) {
         const ratingData = await res.json();
         // Use the response data directly - ensure score is a number
-        const ratingScore = typeof ratingData.score === 'number' 
-          ? ratingData.score 
+        const ratingScore = typeof ratingData.score === 'number'
+          ? ratingData.score
           : parseInt(String(ratingData.score), 10);
         console.log("Setting userRating to:", ratingScore, typeof ratingScore);
         setUserRating(ratingScore);
         setRatingComment(ratingData.summaryComment || "");
-        
+
         // Refresh the spots list to update average rating
         onUpdate();
-        
+
         // Reload other details (ratings list, comments, etc.) but skip my-rating since we already have it
         try {
           const [ratingsRes, commentsRes, photosRes, lodgingsRes] = await Promise.all([
@@ -133,7 +135,7 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate }) => 
           setComments(await commentsRes.json());
           setPhotos(await photosRes.json());
           setLodgings(await lodgingsRes.json());
-          
+
           // Don't call my-rating - we already have the data from the POST response
         } catch (err) {
           console.error("Error reloading details:", err);
@@ -180,6 +182,51 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate }) => 
     }
   };
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!token) {
+      alert("Please login to upload photos");
+      return;
+    }
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate type client-side
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      alert("Invalid file type. Only JPEG, PNG, and WebP allowed");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("photo", file);
+      formData.append("title", file.name);
+
+      const res = await fetch(`/api/photos/spot/${spot.id}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (res.ok) {
+        loadDetails();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to upload photo");
+      }
+    } catch (error) {
+      console.error("Error uploading photo:", error);
+      alert("Failed to upload photo");
+    } finally {
+      setLoading(false);
+      // Reset input
+      e.target.value = "";
+    }
+  };
+
   return (
     <article
       style={{
@@ -190,7 +237,37 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate }) => 
         boxShadow: "0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.06)",
       }}
     >
-      <h3 style={{ margin: "0 0 0.25rem", fontSize: "1.1rem" }}>{spot.name}</h3>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <h3 style={{ margin: "0 0 0.25rem", fontSize: "1.1rem" }}>{spot.name}</h3>
+        {token && onToggleFavorite && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite(spot.id);
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: "1.5rem",
+              padding: "0 0.5rem",
+              color: isFavorite ? "#e91e63" : "#ccc",
+              transition: "transform 0.2s",
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.transform = "scale(1.2)";
+              if (!isFavorite) e.currentTarget.style.color = "#f48fb1";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = "scale(1)";
+              if (!isFavorite) e.currentTarget.style.color = "#ccc";
+            }}
+            title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+          >
+            {isFavorite ? "♥" : "♡"}
+          </button>
+        )}
+      </div>
       <p style={{ margin: 0, color: "#64748b", fontSize: "0.9rem" }}>
         {spot.city}, {spot.state}, {spot.country}
       </p>
@@ -219,7 +296,7 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate }) => 
         >
           {showDetails ? "Hide Details" : "View Details"}
         </button>
- <button
+        <button
           onClick={async () => {
             try {
               const res = await fetch(`/api/directions/spot/${spot.id}`);
@@ -251,7 +328,7 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate }) => 
           {token && (
             <div style={{ marginBottom: "1.5rem" }}>
               <h4>Rate this spot:</h4>
-              <div 
+              <div
                 style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}
                 onMouseLeave={() => setHoveredRating(null)}
               >
@@ -259,18 +336,18 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate }) => 
                   // Determine if star should be highlighted
                   // Use hoveredRating if hovering, otherwise use userRating
                   let displayRating: number | null = null;
-                  
+
                   if (hoveredRating !== null && hoveredRating !== undefined) {
                     displayRating = Number(hoveredRating);
                   } else if (userRating !== null && userRating !== undefined) {
                     displayRating = Number(userRating);
                   }
-                  
+
                   // Only highlight if we have a valid rating and this star is <= the rating
-                  const isHighlighted = displayRating !== null && 
-                                       !isNaN(displayRating) &&
-                                       star <= displayRating;
-                  
+                  const isHighlighted = displayRating !== null &&
+                    !isNaN(displayRating) &&
+                    star <= displayRating;
+
                   // Debug: log first star only
                   if (star === 1 && process.env.NODE_ENV === 'development') {
                     console.log("Star rendering debug:", {
@@ -282,7 +359,7 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate }) => 
                       color: isHighlighted ? "#ffc107" : "#ccc"
                     });
                   }
-                  
+
                   return (
                     <button
                       key={star}
@@ -372,18 +449,65 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate }) => 
           </div>
 
           {/* Photos Section */}
-          {photos.length > 0 && (
-            <div style={{ marginBottom: "1.5rem" }}>
+          <div style={{ marginBottom: "1.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
               <h4>Photos ({photos.length})</h4>
+              {token && (
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <label
+                    htmlFor={`photo-upload-${spot.id}`}
+                    style={{
+                      cursor: "pointer",
+                      padding: "0.25rem 0.75rem",
+                      backgroundColor: "#e2e8f0",
+                      borderRadius: "4px",
+                      fontSize: "0.85rem",
+                      marginRight: "0.5rem"
+                    }}
+                  >
+                    + Add Photo
+                  </label>
+                  <input
+                    id={`photo-upload-${spot.id}`}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handlePhotoUpload}
+                    style={{ display: "none" }}
+                    disabled={loading}
+                  />
+                </div>
+              )}
+            </div>
+
+            {photos.length > 0 ? (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: "0.5rem" }}>
                 {photos.map((photo: any) => (
-                  <div key={photo._id} style={{ aspectRatio: "1", background: "#f0f0f0", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <span style={{ fontSize: "0.8rem", color: "#666" }}>📷 {photo.title}</span>
+                  <div key={photo._id || photo.id} style={{ aspectRatio: "1", background: "#f0f0f0", borderRadius: "4px", overflow: "hidden", position: "relative" }}>
+                    {photo.filename ? (
+                      <a href={`/uploads/${photo.filename}`} target="_blank" rel="noopener noreferrer">
+                        <img
+                          src={`/uploads/${photo.filename}`}
+                          alt={photo.title || "Spot photo"}
+                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          onError={(e) => {
+                            // Fallback if image fails to load
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.parentElement!.innerText = 'Image not found';
+                          }}
+                        />
+                      </a>
+                    ) : (
+                      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <span style={{ fontSize: "0.8rem", color: "#666" }}>📷 {photo.title}</span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <p style={{ color: "#666", fontStyle: "italic", fontSize: "0.9rem" }}>No photos yet.</p>
+            )}
+          </div>
 
           {/* Lodgings Section */}
           {lodgings.length > 0 && (
@@ -410,4 +534,3 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate }) => 
     </article>
   );
 };
-
