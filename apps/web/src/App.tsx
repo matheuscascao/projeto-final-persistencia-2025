@@ -16,7 +16,7 @@ const App: React.FC = () => {
       const parsedUser = JSON.parse(storedUser);
       setUser(parsedUser);
       console.log("App - Loaded user from localStorage:", parsedUser);
-      
+
       // Optionally refresh user data from server to ensure role is up to date
       fetch("/api/auth/me", {
         headers: { Authorization: `Bearer ${storedToken}` },
@@ -46,6 +46,7 @@ const App: React.FC = () => {
     localStorage.removeItem("user");
     setToken(null);
     setUser(null);
+    console.log('teste git')
   };
 
   return (
