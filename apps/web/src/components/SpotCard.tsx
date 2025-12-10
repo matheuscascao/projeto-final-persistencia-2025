@@ -21,6 +21,18 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
   const [commentText, setCommentText] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Lodging Form State
+  const [showLodgingForm, setShowLodgingForm] = useState(false);
+  const [lodgingForm, setLodgingForm] = useState({
+    name: "",
+    address: "",
+    phone: "",
+    avgPrice: "",
+    type: "Hotel", // Default
+    bookingLink: ""
+  });
+
+
   useEffect(() => {
     // Reset rating state when spot changes
     setUserRating(null);
@@ -182,6 +194,72 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
     }
   };
 
+  const handleDeleteComment = async (commentId: string) => {
+    if (!confirm("Are you sure you want to delete this comment?")) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/comments/${commentId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        setComments(comments.filter(c => c._id !== commentId));
+      } else {
+        alert("Failed to delete comment");
+      }
+    } catch (error) {
+      console.error("Error deleting comment:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddLodging = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/lodgings`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          spotId: spot.id,
+          ...lodgingForm,
+          avgPrice: lodgingForm.avgPrice // Ensure it's string or number as expected by API
+        }),
+      });
+
+      if (res.ok) {
+        const newLodging = await res.json();
+        setLodgings([...lodgings, newLodging]);
+        setShowLodgingForm(false);
+        setLodgingForm({
+          name: "",
+          address: "",
+          phone: "",
+          avgPrice: "",
+          type: "Hotel",
+          bookingLink: ""
+        });
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to add lodging");
+      }
+    } catch (error) {
+      console.error("Error adding lodging:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!token) {
       alert("Please login to upload photos");
@@ -280,6 +358,21 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
       <p style={{ marginTop: "0.25rem", fontSize: "0.85rem", color: "#0f172a" }}>
         <strong>Rating:</strong> {Number(spot.averageRating).toFixed(1)} / 5 ⭐
       </p>
+
+      {/* Weather Display */}
+      {(spot as any).weather && (
+        <div style={{ marginTop: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem", color: "#64748b", fontSize: "0.9rem" }}>
+          <img
+            src={(spot as any).weather.icon}
+            alt={(spot as any).weather.condition}
+            style={{ width: "30px", height: "30px" }}
+          />
+          <span>
+            {Math.round((spot as any).weather.temp)}°C, {(spot as any).weather.condition}
+          </span>
+        </div>
+      )}
+
 
       <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
         <button
@@ -443,6 +536,23 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
                   <small style={{ color: "#666" }}>
                     {new Date(comment.createdAt).toLocaleDateString()}
                   </small>
+                  {/* Delete Comment Button */}
+                  {token && (
+                    <button
+                      onClick={() => handleDeleteComment(comment._id)}
+                      style={{
+                        marginLeft: "1rem",
+                        color: "#ef4444",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: "0.8rem",
+                        textDecoration: "underline"
+                      }}
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -510,27 +620,103 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
           </div>
 
           {/* Lodgings Section */}
-          {lodgings.length > 0 && (
-            <div>
+          <div style={{ paddingBottom: "1rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
               <h4>Nearby Lodgings ({lodgings.length})</h4>
-              {lodgings.map((lodging: any) => (
-                <div key={lodging.id} style={{ marginBottom: "0.5rem", padding: "0.5rem", background: "#f5f5f5", borderRadius: "4px" }}>
-                  <strong>{lodging.name}</strong> - {lodging.type}
-                  <br />
-                  <small>{lodging.address}</small>
-                  <br />
-                  <small>Avg. Price: ${lodging.avgPrice}</small>
-                  {lodging.bookingLink && (
-                    <a href={lodging.bookingLink} target="_blank" rel="noopener noreferrer" style={{ marginLeft: "0.5rem", fontSize: "0.8rem" }}>
-                      Book Now
-                    </a>
-                  )}
-                </div>
-              ))}
+              {token && (
+                <button
+                  onClick={() => setShowLodgingForm(!showLodgingForm)}
+                  style={{
+                    padding: "0.25rem 0.75rem",
+                    backgroundColor: "#e2e8f0",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  {showLodgingForm ? "Cancel" : "+ Add Lodging"}
+                </button>
+              )}
             </div>
-          )}
-        </div>
+
+            {showLodgingForm && (
+              <form onSubmit={handleAddLodging} style={{ marginBottom: "1rem", padding: "1rem", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                  <input
+                    placeholder="Name"
+                    value={lodgingForm.name}
+                    onChange={e => setLodgingForm({ ...lodgingForm, name: e.target.value })}
+                    required
+                    style={{ padding: "0.5rem" }}
+                  />
+                  <select
+                    value={lodgingForm.type}
+                    onChange={e => setLodgingForm({ ...lodgingForm, type: e.target.value })}
+                    style={{ padding: "0.5rem" }}
+                  >
+                    <option value="Hotel">Hotel</option>
+                    <option value="Hostel">Hostel</option>
+                    <option value="Inn">Inn</option>
+                    <option value="Resort">Resort</option>
+                  </select>
+                  <input
+                    placeholder="Address"
+                    value={lodgingForm.address}
+                    onChange={e => setLodgingForm({ ...lodgingForm, address: e.target.value })}
+                    required
+                    style={{ padding: "0.5rem" }}
+                  />
+                  <input
+                    placeholder="Avg Price (e.g. 100.00)"
+                    value={lodgingForm.avgPrice}
+                    onChange={e => setLodgingForm({ ...lodgingForm, avgPrice: e.target.value })}
+                    style={{ padding: "0.5rem" }}
+                  />
+                  <input
+                    placeholder="Booking Link"
+                    value={lodgingForm.bookingLink}
+                    onChange={e => setLodgingForm({ ...lodgingForm, bookingLink: e.target.value })}
+                    style={{ padding: "0.5rem" }}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    backgroundColor: "#166534",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: loading ? "not-allowed" : "pointer"
+                  }}
+                >
+                  Save Lodging
+                </button>
+              </form>
+            )}
+
+            {lodgings.length > 0 && (
+              <div>
+                {lodgings.map((lodging: any) => (
+                  <div key={lodging.id} style={{ marginBottom: "0.5rem", padding: "0.5rem", background: "#f5f5f5", borderRadius: "4px" }}>
+                    <strong>{lodging.name}</strong> - {lodging.type}
+                    <br />
+                    <small>{lodging.address}</small>
+                    <br />
+                    <small>Avg. Price: ${lodging.avgPrice}</small>
+                    {lodging.bookingLink && (
+                      <a href={lodging.bookingLink} target="_blank" rel="noopener noreferrer" style={{ marginLeft: "0.5rem", fontSize: "0.8rem" }}>
+                        Book Now
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
       )}
-    </article>
-  );
+        </article>
+      );
 };

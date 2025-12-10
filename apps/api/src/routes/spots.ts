@@ -6,8 +6,29 @@ import { TouristSpotCreateInput, touristSpotCreateSchema } from "@tourism/shared
 import { authenticate, requireRole } from "../middleware/auth";
 import { eq, like, and, sql, or, desc } from "drizzle-orm";
 import { z } from "zod";
+import { getRedisClient } from "../redis/client";
+import { getWeather } from "../utils/weather";
+
 
 const spots = new Hono();
+
+// Recommendations Endpoint
+spots.get("/recommendations", async (c) => {
+  try {
+    // Get top 5 spots by rating
+    const topSpots = await db
+      .select()
+      .from(touristSpots)
+      .orderBy(desc(touristSpots.averageRating))
+      .limit(5);
+
+    return c.json(topSpots);
+  } catch (error) {
+    console.error("Error fetching recommendations:", error);
+    return c.json({ error: "Failed to fetch recommendations" }, 500);
+  }
+});
+
 
 const paginationSchema = z.object({
   page: z.string().optional().default("1"),
@@ -70,7 +91,7 @@ spots.get("/", zValidator("query", paginationSchema), async (c) => {
 
     // Apply sorting
     if (sortBy === "name") {
-      query = sortOrder === "asc" 
+      query = sortOrder === "asc"
         ? query.orderBy(touristSpots.name)
         : query.orderBy(desc(touristSpots.name));
     } else if (sortBy === "rating") {
@@ -104,7 +125,20 @@ spots.get("/", zValidator("query", paginationSchema), async (c) => {
 spots.get("/:id", async (c) => {
   try {
     const { id } = c.req.param();
-    
+
+    const redis = await getRedisClient();
+    const cacheKey = `spot:${id}`;
+
+    // Try cache first
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return c.json(JSON.parse(cached));
+      }
+    } catch (err) {
+      console.error("Redis error:", err);
+    }
+
     const [spot] = await db
       .select()
       .from(touristSpots)
@@ -115,7 +149,19 @@ spots.get("/:id", async (c) => {
       return c.json({ error: "Spot not found" }, 404);
     }
 
-    return c.json(spot);
+    // Fetch weather (don't fail if weather fails)
+    const weather = await getWeather(Number(spot.lat), Number(spot.lng));
+
+    const result = { ...spot, weather };
+
+    // Set cache (1 hour)
+    try {
+      await redis.set(cacheKey, JSON.stringify(result), { EX: 3600 });
+    } catch (err) {
+      console.error("Redis set error:", err);
+    }
+
+    return c.json(result);
   } catch (error) {
     console.error("Error fetching spot:", error);
     return c.json({ error: "Failed to fetch spot" }, 500);
@@ -197,6 +243,14 @@ spots.put(
         .where(eq(touristSpots.id, id))
         .returning();
 
+      // Invalidate cache
+      try {
+        const redis = await getRedisClient();
+        await redis.del(`spot:${id}`);
+      } catch (err) {
+        console.error("Redis del error:", err);
+      }
+
       return c.json(updated);
     } catch (error) {
       console.error("Error updating spot:", error);
@@ -228,6 +282,14 @@ spots.delete("/:id", authenticate, async (c) => {
     }
 
     await db.delete(touristSpots).where(eq(touristSpots.id, id));
+
+    // Invalidate cache
+    try {
+      const redis = await getRedisClient();
+      await redis.del(`spot:${id}`);
+    } catch (err) {
+      console.error("Redis del error:", err);
+    }
 
     return c.json({ message: "Spot deleted successfully" });
   } catch (error) {
