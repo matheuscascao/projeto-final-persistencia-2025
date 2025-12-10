@@ -716,6 +716,7 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
               </div>
             )}
           </div>
+        </div>
       )}
         </article>
       );
