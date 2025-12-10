@@ -20,16 +20,70 @@ export const SpotList: React.FC<SpotListProps> = ({ token, user }) => {
     minRating: "",
     search: "",
   });
-  
+
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+
   // Check if user is admin - handle both string and case variations
   const isAdmin = user?.role === "ADMIN" || user?.role === "admin" || user?.role?.toUpperCase() === "ADMIN";
-  
+
   // Debug: Log user object to see what we're getting
   React.useEffect(() => {
     console.log("SpotList - User object:", user);
     console.log("SpotList - User role:", user?.role, "Type:", typeof user?.role);
     console.log("SpotList - Is Admin:", isAdmin);
-  }, [user, isAdmin]);
+
+    if (token) {
+      loadFavorites();
+    }
+  }, [user, isAdmin, token]);
+
+  const loadFavorites = async () => {
+    try {
+      const res = await fetch("/api/favorites", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Assuming data is array of { spotId: string, ... }
+        const favIds = new Set<string>(data.map((f: any) => f.spotId));
+        setFavorites(favIds);
+      }
+    } catch (err) {
+      console.error("Failed to load favorites:", err);
+    }
+  }
+
+  const handleToggleFavorite = async (spotId: string) => {
+    if (!token) return;
+
+    const isFav = favorites.has(spotId);
+
+    // Optimistic update
+    const newFavorites = new Set(favorites);
+    if (isFav) {
+      newFavorites.delete(spotId);
+    } else {
+      newFavorites.add(spotId);
+    }
+    setFavorites(newFavorites);
+
+    try {
+      const method = isFav ? "DELETE" : "POST";
+      const res = await fetch(`/api/favorites/${spotId}`, {
+        method,
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!res.ok) {
+        // Revert on failure
+        setFavorites(favorites);
+        console.error("Failed to toggle favorite");
+      }
+    } catch (err) {
+      setFavorites(favorites);
+      console.error("Error toggling favorite:", err);
+    }
+  };
 
   const loadSpots = async () => {
     try {
@@ -217,7 +271,14 @@ export const SpotList: React.FC<SpotListProps> = ({ token, user }) => {
             }}
           >
             {spots.map((spot) => (
-              <SpotCard key={spot.id} spot={spot} token={token} onUpdate={loadSpots} />
+              <SpotCard
+                key={spot.id}
+                spot={spot}
+                token={token}
+                onUpdate={loadSpots}
+                isFavorite={favorites.has(spot.id)}
+                onToggleFavorite={handleToggleFavorite}
+              />
             ))}
           </div>
 
