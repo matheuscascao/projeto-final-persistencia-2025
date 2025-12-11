@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import type { TouristSpot } from "@tourism/shared";
 import { SpotCard } from "./SpotCard";
-import { CreateSpotForm } from "./CreateSpotForm";
+import { SpotForm } from "./SpotForm";
 
 interface SpotListProps {
   token: string;
@@ -217,12 +217,77 @@ export const SpotList: React.FC<SpotListProps> = ({ token, user }) => {
           >
             Export XML
           </button>
+
+          {isAdmin && (
+            <>
+              <input
+                type="file"
+                id="import-file"
+                style={{ display: "none" }}
+                accept=".json,.csv,.xml"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+
+                  const ext = file.name.split(".").pop()?.toLowerCase();
+                  if (!["json", "csv", "xml"].includes(ext || "")) {
+                    alert("Invalid file format. Please use .json, .csv, or .xml");
+                    return;
+                  }
+
+                  const formData = new FormData();
+                  formData.append("file", file);
+                  formData.append("format", ext!);
+
+                  try {
+                    const res = await fetch("/api/import/spots", {
+                      method: "POST",
+                      headers: {
+                        Authorization: `Bearer ${token}`
+                      },
+                      body: formData
+                    });
+
+                    const data = await res.json();
+
+                    if (res.ok) {
+                      alert(`Import completed: ${data.results.successful} successful, ${data.results.failed} failed.`);
+                      void loadSpots();
+                    } else {
+                      alert(data.error || "Import failed");
+                    }
+                  } catch (error) {
+                    console.error("Import error:", error);
+                    alert("Failed to import spots");
+                  }
+
+                  // Reset input
+                  e.target.value = "";
+                }}
+              />
+              <button
+                onClick={() => document.getElementById("import-file")?.click()}
+                style={{
+                  padding: "0.5rem 1rem",
+                  backgroundColor: "#007bff",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontSize: "0.9rem",
+                  fontWeight: "500",
+                }}
+              >
+                Import Data
+              </button>
+            </>
+          )}
         </div>
       </div>
 
       {/* Create Spot Form (Admin only) */}
       {isAdmin && showCreateForm && (
-        <CreateSpotForm
+        <SpotForm
           token={token}
           onSuccess={() => {
             setShowCreateForm(false);
@@ -275,6 +340,7 @@ export const SpotList: React.FC<SpotListProps> = ({ token, user }) => {
                 key={spot.id}
                 spot={spot}
                 token={token}
+                user={user}
                 onUpdate={loadSpots}
                 isFavorite={favorites.has(spot.id)}
                 onToggleFavorite={handleToggleFavorite}

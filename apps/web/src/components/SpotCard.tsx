@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from "react";
 import type { TouristSpot } from "@tourism/shared";
+import { SpotForm } from "./SpotForm";
 
 interface SpotCardProps {
   spot: TouristSpot;
   token: string | null;
+  user?: any;
   onUpdate: () => void;
   isFavorite?: boolean;
   onToggleFavorite?: (spotId: string) => void;
 }
 
-export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFavorite, onToggleFavorite }) => {
+export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, user, onUpdate, isFavorite, onToggleFavorite }) => {
   const [showDetails, setShowDetails] = useState(false);
   const [ratings, setRatings] = useState<any[]>([]);
   const [comments, setComments] = useState<any[]>([]);
@@ -31,6 +33,10 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
     type: "Hotel", // Default
     bookingLink: ""
   });
+
+  // Admin Check
+  const isAdmin = user?.role === "ADMIN" || user?.role === "admin" || user?.role?.toUpperCase() === "ADMIN";
+  const [showEditForm, setShowEditForm] = useState(false);
 
 
   useEffect(() => {
@@ -233,7 +239,7 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
         body: JSON.stringify({
           spotId: spot.id,
           ...lodgingForm,
-          avgPrice: lodgingForm.avgPrice // Ensure it's string or number as expected by API
+          avgPrice: parseFloat(lodgingForm.avgPrice) || 0
         }),
       });
 
@@ -378,6 +384,7 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
         <button
           onClick={() => setShowDetails(!showDetails)}
           style={{
+            flex: "1 1 auto", minWidth: "120px",
             padding: "0.5rem 1rem",
             backgroundColor: "#1976d2",
             color: "white",
@@ -402,6 +409,7 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
             }
           }}
           style={{
+            flex: "1 1 auto", minWidth: "120px",
             padding: "0.5rem 1rem",
             backgroundColor: "#4caf50",
             color: "white",
@@ -413,7 +421,75 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
         >
           Get Directions
         </button>
+
+        {isAdmin && (
+          <>
+            <button
+              onClick={() => setShowEditForm(!showEditForm)}
+              style={{
+                padding: "0.5rem 1rem",
+                backgroundColor: "#ff9800",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                fontSize: "0.9rem",
+                cursor: "pointer",
+              }}
+            >
+              {showEditForm ? "Cancel Edit" : "Edit"}
+            </button>
+            <button
+              onClick={async () => {
+                if (!confirm("Are you sure you want to delete this spot? This action cannot be undone.")) return;
+
+                try {
+                  const res = await fetch(`/api/spots/${spot.id}`, {
+                    method: "DELETE",
+                    headers: {
+                      Authorization: `Bearer ${token}`
+                    }
+                  });
+
+                  if (res.ok) {
+                    onUpdate(); // Reload list
+                  } else {
+                    const err = await res.json();
+                    alert(err.error || "Failed to delete spot");
+                  }
+                } catch (error) {
+                  console.error("Error deleting spot:", error);
+                  alert("Failed to delete spot");
+                }
+              }}
+              style={{
+                padding: "0.5rem 1rem",
+                backgroundColor: "#dc3545",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                fontSize: "0.9rem",
+                cursor: "pointer",
+              }}
+            >
+              Delete
+            </button>
+          </>
+        )}
       </div>
+
+      {showEditForm && (
+        <div style={{ marginTop: "1rem" }}>
+          <SpotForm
+            token={token!}
+            initialData={spot}
+            onSuccess={() => {
+              setShowEditForm(false);
+              onUpdate();
+            }}
+            onCancel={() => setShowEditForm(false)}
+          />
+        </div>
+      )}
 
       {showDetails && (
         <div style={{ marginTop: "1.5rem", borderTop: "1px solid #e0e0e0", paddingTop: "1rem" }}>
@@ -485,18 +561,18 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
                   You rated this {userRating} star{Number(userRating) > 1 ? 's' : ''}
                 </p>
               )}
-              {/* Debug: Remove this in production */}
+              {/* Debug: Remove this in production
               {process.env.NODE_ENV === 'development' && (
                 <p style={{ margin: "0.25rem 0", fontSize: "0.75rem", color: "#999" }}>
                   Debug: userRating={String(userRating)}, type={typeof userRating}, hovered={String(hoveredRating)}
                 </p>
-              )}
+              )} */}
               <input
                 type="text"
                 placeholder="Add a comment about your rating..."
                 value={ratingComment}
                 onChange={(e) => setRatingComment(e.target.value)}
-                style={{ width: "100%", padding: "0.5rem", fontSize: "0.9rem", marginTop: "0.5rem" }}
+                style={{ width: "100%", padding: "0.5rem", fontSize: "0.9rem", marginTop: "0.5rem", boxSizing: "border-box" }}
               />
             </div>
           )}
@@ -510,7 +586,7 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
                   placeholder="Write a comment..."
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
-                  style={{ width: "100%", padding: "0.5rem", fontSize: "0.9rem", minHeight: "60px" }}
+                  style={{ width: "100%", padding: "0.5rem", fontSize: "0.9rem", minHeight: "60px", boxSizing: "border-box" }}
                 />
                 <button
                   onClick={handleComment}
@@ -611,6 +687,53 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
                         <span style={{ fontSize: "0.8rem", color: "#666" }}>📷 {photo.title}</span>
                       </div>
                     )}
+                    {token && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm("Delete this photo?")) return;
+
+                          try {
+                            const res = await fetch(`/api/photos/${photo._id || photo.id}`, {
+                              method: "DELETE",
+                              headers: {
+                                Authorization: `Bearer ${token}`
+                              }
+                            });
+
+                            if (res.ok) {
+                              setPhotos(photos.filter(p => (p._id || p.id) !== (photo._id || photo.id)));
+                            } else {
+                              const err = await res.json();
+                              alert(err.error || "Failed to delete photo");
+                            }
+                          } catch (error) {
+                            console.error("Error deleting photo:", error);
+                            alert("Failed to delete photo");
+                          }
+                        }}
+                        style={{
+                          position: "absolute",
+                          top: "2px",
+                          right: "2px",
+                          background: "rgba(255, 255, 255, 0.9)",
+                          color: "red",
+                          border: "none",
+                          borderRadius: "50%",
+                          width: "20px",
+                          height: "20px",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "12px",
+                          fontWeight: "bold",
+                          zIndex: 10
+                        }}
+                        title="Delete photo"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -642,18 +765,18 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
 
             {showLodgingForm && (
               <form onSubmit={handleAddLodging} style={{ marginBottom: "1rem", padding: "1rem", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
                   <input
                     placeholder="Name"
                     value={lodgingForm.name}
                     onChange={e => setLodgingForm({ ...lodgingForm, name: e.target.value })}
                     required
-                    style={{ padding: "0.5rem" }}
+                    style={{ padding: "0.5rem", flex: "1 1 200px" }}
                   />
                   <select
                     value={lodgingForm.type}
                     onChange={e => setLodgingForm({ ...lodgingForm, type: e.target.value })}
-                    style={{ padding: "0.5rem" }}
+                    style={{ padding: "0.5rem", flex: "1 1 150px" }}
                   >
                     <option value="Hotel">Hotel</option>
                     <option value="Hostel">Hostel</option>
@@ -665,19 +788,26 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
                     value={lodgingForm.address}
                     onChange={e => setLodgingForm({ ...lodgingForm, address: e.target.value })}
                     required
-                    style={{ padding: "0.5rem" }}
+                    style={{ padding: "0.5rem", flex: "1 1 200px" }}
+                  />
+                  <input
+                    placeholder="Phone (min 5 chars)"
+                    value={lodgingForm.phone}
+                    onChange={e => setLodgingForm({ ...lodgingForm, phone: e.target.value })}
+                    required
+                    style={{ padding: "0.5rem", flex: "1 1 150px" }}
                   />
                   <input
                     placeholder="Avg Price (e.g. 100.00)"
                     value={lodgingForm.avgPrice}
                     onChange={e => setLodgingForm({ ...lodgingForm, avgPrice: e.target.value })}
-                    style={{ padding: "0.5rem" }}
+                    style={{ padding: "0.5rem", flex: "1 1 150px" }}
                   />
                   <input
                     placeholder="Booking Link"
                     value={lodgingForm.bookingLink}
                     onChange={e => setLodgingForm({ ...lodgingForm, bookingLink: e.target.value })}
-                    style={{ padding: "0.5rem" }}
+                    style={{ padding: "0.5rem", flex: "1 1 200px" }}
                   />
                 </div>
                 <button
@@ -700,7 +830,7 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
             {lodgings.length > 0 && (
               <div>
                 {lodgings.map((lodging: any) => (
-                  <div key={lodging.id} style={{ marginBottom: "0.5rem", padding: "0.5rem", background: "#f5f5f5", borderRadius: "4px" }}>
+                  <div key={lodging.id} style={{ marginBottom: "0.5rem", padding: "0.5rem", background: "#f5f5f5", borderRadius: "4px", position: "relative" }}>
                     <strong>{lodging.name}</strong> - {lodging.type}
                     <br />
                     <small>{lodging.address}</small>
@@ -711,6 +841,46 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
                         Book Now
                       </a>
                     )}
+                    {token && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm("Delete this lodging?")) return;
+
+                          try {
+                            const res = await fetch(`/api/lodgings/${lodging.id}`, {
+                              method: "DELETE",
+                              headers: {
+                                Authorization: `Bearer ${token}`
+                              }
+                            });
+
+                            if (res.ok) {
+                              setLodgings(lodgings.filter(l => l.id !== lodging.id));
+                            } else {
+                              const err = await res.json();
+                              alert(err.error || "Failed to delete lodging");
+                            }
+                          } catch (error) {
+                            console.error("Error deleting lodging:", error);
+                            alert("Failed to delete lodging");
+                          }
+                        }}
+                        style={{
+                          position: "absolute",
+                          top: "5px",
+                          right: "5px",
+                          background: "none",
+                          color: "#dc3545",
+                          border: "none",
+                          cursor: "pointer",
+                          fontSize: "1.2rem",
+                          fontWeight: "bold",
+                        }}
+                        title="Delete lodging"
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -718,6 +888,6 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, onUpdate, isFav
           </div>
         </div>
       )}
-        </article>
-      );
+    </article>
+  );
 };

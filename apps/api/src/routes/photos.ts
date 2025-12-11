@@ -12,7 +12,7 @@ photos.get("/spot/:spotId", async (c) => {
   try {
     const { spotId } = c.req.param();
     const db = await getMongoDb();
-    
+
     const spotPhotos = await db
       .collection("photos")
       .find({ spotId })
@@ -59,7 +59,12 @@ photos.post("/spot/:spotId", authenticate, async (c) => {
     // Generate unique filename
     const ext = file.name.split(".").pop();
     const filename = `${randomUUID()}.${ext}`;
-    const diskPath = resolve(__dirname, "../../uploads", filename);
+    const uploadDir = resolve(__dirname, "../../uploads");
+    const diskPath = resolve(uploadDir, filename);
+
+    // Ensure uploads directory exists
+    const { mkdir } = await import("fs/promises");
+    await mkdir(uploadDir, { recursive: true });
 
     // Save file to disk
     const buffer = await file.arrayBuffer();
