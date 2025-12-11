@@ -85,6 +85,19 @@ export const SpotList: React.FC<SpotListProps> = ({ token, user }) => {
     }
   };
 
+  // Debounce filters
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedFilters(filters);
+    }, 500);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [filters]);
+
   const loadSpots = async () => {
     try {
       setLoading(true);
@@ -93,9 +106,10 @@ export const SpotList: React.FC<SpotListProps> = ({ token, user }) => {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: "6",
-        ...(filters.city && { city: filters.city }),
-        ...(filters.minRating && { minRating: filters.minRating }),
-        ...(filters.search && { search: filters.search }),
+        ...(debouncedFilters.city && { city: debouncedFilters.city }),
+        ...(debouncedFilters.state && { state: debouncedFilters.state }), // Also support state filter if added later
+        ...(debouncedFilters.minRating && { minRating: debouncedFilters.minRating }),
+        ...(debouncedFilters.search && { search: debouncedFilters.search }),
         sortBy: "rating",
         sortOrder: "desc",
       });
@@ -118,9 +132,10 @@ export const SpotList: React.FC<SpotListProps> = ({ token, user }) => {
     }
   };
 
+  // Load spots when debounced filters or page changes
   useEffect(() => {
     void loadSpots();
-  }, [page, filters]);
+  }, [page, debouncedFilters]);
 
   const handleExport = async (format: string) => {
     try {

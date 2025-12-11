@@ -746,7 +746,7 @@ export const SpotCard: React.FC<SpotCardProps> = ({ spot, token, user, onUpdate,
           <div style={{ paddingBottom: "1rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
               <h4>Nearby Lodgings ({lodgings.length})</h4>
-              {token && (
+              {isAdmin && (
                 <button
                   onClick={() => setShowLodgingForm(!showLodgingForm)}
                   style={{

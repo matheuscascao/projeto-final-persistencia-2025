@@ -12,7 +12,7 @@ const lodgingsRouter = new Hono();
 lodgingsRouter.get("/spot/:spotId", async (c) => {
   try {
     const { spotId } = c.req.param();
-    
+
     const spotLodgings = await db
       .select()
       .from(lodgings)
@@ -29,7 +29,7 @@ lodgingsRouter.get("/spot/:spotId", async (c) => {
 lodgingsRouter.get("/:id", async (c) => {
   try {
     const { id } = c.req.param();
-    
+
     const [lodging] = await db
       .select()
       .from(lodgings)
@@ -47,10 +47,17 @@ lodgingsRouter.get("/:id", async (c) => {
   }
 });
 
-// Create lodging (requires authentication)
+// Create lodging (requires authentication and admin)
 lodgingsRouter.post(
   "/",
   authenticate,
+  async (c, next) => {
+    const user = c.get("user");
+    if (user.role !== "ADMIN") {
+      return c.json({ error: "Forbidden - Admin access required" }, 403);
+    }
+    await next();
+  },
   zValidator("json", lodgingCreateSchema),
   async (c) => {
     try {
@@ -69,10 +76,17 @@ lodgingsRouter.post(
   }
 );
 
-// Update lodging (requires authentication)
+// Update lodging (requires authentication and admin)
 lodgingsRouter.put(
   "/:id",
   authenticate,
+  async (c, next) => {
+    const user = c.get("user");
+    if (user.role !== "ADMIN") {
+      return c.json({ error: "Forbidden - Admin access required" }, 403);
+    }
+    await next();
+  },
   zValidator("json", lodgingUpdateSchema),
   async (c) => {
     try {
@@ -97,10 +111,15 @@ lodgingsRouter.put(
   }
 );
 
-// Delete lodging (requires authentication)
+// Delete lodging (requires authentication and admin)
 lodgingsRouter.delete("/:id", authenticate, async (c) => {
   try {
     const { id } = c.req.param();
+    const user = c.get("user");
+
+    if (user.role !== "ADMIN") {
+      return c.json({ error: "Forbidden - Admin access required" }, 403);
+    }
 
     await db.delete(lodgings).where(eq(lodgings.id, id));
 

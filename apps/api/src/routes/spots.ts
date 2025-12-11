@@ -4,13 +4,9 @@ import { db } from "../db/client";
 import { touristSpots } from "../db/schema";
 import { TouristSpotCreateInput, touristSpotCreateSchema } from "@tourism/shared";
 import { authenticate, requireRole } from "../middleware/auth";
-import { eq, like, and, sql, or, desc } from "drizzle-orm";
-import { z } from "zod";
-import { getRedisClient } from "../redis/client";
-import { getWeather } from "../utils/weather";
+import { eq, like, ilike, and, sql, or, desc } from "drizzle-orm"; // Add ilike to imports
 
-
-const spots = new Hono();
+// ...
 
 // Recommendations Endpoint
 spots.get("/recommendations", async (c) => {
@@ -63,17 +59,17 @@ spots.get("/", zValidator("query", paginationSchema), async (c) => {
 
     // Build filters
     const filters = [];
-    if (city) filters.push(like(touristSpots.city, `%${city}%`));
-    if (state) filters.push(like(touristSpots.state, `%${state}%`));
-    if (country) filters.push(like(touristSpots.country, `%${country}%`));
+    if (city) filters.push(ilike(touristSpots.city, `%${city}%`));
+    if (state) filters.push(ilike(touristSpots.state, `%${state}%`));
+    if (country) filters.push(ilike(touristSpots.country, `%${country}%`));
     if (minRating) {
       filters.push(sql`${touristSpots.averageRating} >= ${minRating}`);
     }
     if (search) {
       filters.push(
         or(
-          like(touristSpots.name, `%${search}%`),
-          like(touristSpots.description, `%${search}%`)
+          ilike(touristSpots.name, `%${search}%`),
+          ilike(touristSpots.description, `%${search}%`)
         )!
       );
     }
